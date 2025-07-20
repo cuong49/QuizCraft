@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bài Điền Số</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen p-6">
+
+
+
+    <div class="max-w-4xl mx-auto bg-white p-6 rounded-2xl shadow-lg">
+        <!-- <h1 class="text-2xl font-bold mb-4 text-center text-blue-700">Bài Tập Điền Số (Có đáp án)</h1> -->
+        <h1 class="text-2xl font-bold mb-4 text-center text-blue-700 flex items-center justify-center gap-2">
+            Bài Tập Điền Số (Có đáp án)
+            <a href="fillTest2.html" title="Chuyển sang trang kiểm tra" class="text-blue-600 hover:text-blue-800"
+                target="_blank" rel="noopener noreferrer">
+                <!-- Icon mũi tên bên phải SVG -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 inline-block" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+            </a>
+        </h1>
+
+        <div class="mb-4">
+            <input type="file" id="fileInput" accept=".txt"
+                class="border border-gray-300 rounded px-3 py-2 w-full bg-gray-50" />
+        </div>
+
+        <textarea id="inputText" class="w-full h-60 p-3 border rounded-md mb-4"
+            placeholder="Nhập câu hỏi theo định dạng: a) ... -- đáp án"></textarea>
+
+        <div class="flex justify-center gap-4 mb-4">
+            <button onclick="parseMultipleQuestions()"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded">
+                Phân tích & Hiển thị
+            </button>
+            <button onclick="clearQuestions()"
+                class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded">
+                Xóa tất cả
+            </button>
+        </div>
+
+        <div id="result" class="space-y-8 mt-6"></div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = "dien_so_data";
+        const ANSWER_KEY = "dien_so_answers";
+
+        document.getElementById("fileInput").addEventListener("change", function () {
+            const file = this.files[0];
+            if (file && file.type === "text/plain") {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    document.getElementById("inputText").value = e.target.result;
+                };
+                reader.readAsText(file);
+            } else {
+                alert("Vui lòng chọn file .txt hợp lệ!");
+            }
+        });
+
+        function convertToCauHoiFormat(text) {
+            return text.replace(/^\d+\.\s*(.*)$/gm, 'Câu hỏi: $1');
+        }
+
+        function parseSingleQuestion(text) {
+            text = convertToCauHoiFormat(text.trim());
+            const questionMatch = text.match(/Câu hỏi[:\-]?\s*(.*)/i);
+            const question = questionMatch ? questionMatch[1].split("\n")[0].trim() : "Không tìm thấy câu hỏi.";
+
+            const answerLines = text.split("\n").filter(line => /^[a-z]\)/i.test(line.trim()));
+            const answers = {};
+
+            answerLines.forEach(line => {
+                const match = line.match(/^([a-z])\)\s*(.*?)\s*--\s*(.*)$/i);
+                if (match) {
+                    const letter = match[1].toLowerCase();
+                    const label = match[2].trim();
+                    const correct = match[3].trim();
+                    answers[letter] = { label, correct };
+                }
+            });
+
+            const imgMatch = text.match(/<img[^>]*src=["']([^"']+)["'][^>]*>/i);
+            let imgSrc = imgMatch ? imgMatch[1] : null;
+
+            return { question, answers, imgSrc };
+        }
+
+        function parseMultipleQuestions() {
+            const inputText = document.getElementById("inputText").value;
+            const questionBlocks = inputText.split(/\n\s*\n+/).map(q => q.trim()).filter(q => q.length > 0);
+            const parsedQuestions = questionBlocks.map(parseSingleQuestion);
+
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedQuestions));
+            localStorage.setItem(ANSWER_KEY, JSON.stringify({}));
+            renderQuestions(parsedQuestions);
+        }
+
+        function saveAnswer(questionIdx, optionKey, value) {
+            let allAnswers = {};
+            try {
+                allAnswers = JSON.parse(localStorage.getItem(ANSWER_KEY)) || {};
+            } catch (e) {
+                allAnswers = {};
+            }
+
+            if (!allAnswers[questionIdx]) allAnswers[questionIdx] = {};
+            allAnswers[questionIdx][optionKey] = value;
+            localStorage.setItem(ANSWER_KEY, JSON.stringify(allAnswers));
+        }
+
+        function renderQuestions(questions) {
+            const resultDiv = document.getElementById("result");
+            const savedAnswers = JSON.parse(localStorage.getItem(ANSWER_KEY) || "{}");
+
+            resultDiv.innerHTML = questions.map((q, idx) => `
+    <div class="bg-gray-50 p-4 rounded-lg shadow space-y-2">
+      <h2 class="text-xl font-semibold">Câu ${idx + 1}:</h2>
+      <p>${q.question}</p>
+      ${q.imgSrc ? `<img src="${q.imgSrc}" alt="Hình minh họa" class="my-3 max-w-xs border rounded">` : ""}
+      <ul class="space-y-2">
+        ${Object.entries(q.answers).map(([letter, data]) => {
+                const storedAnswer = savedAnswers[idx]?.[letter];
+                const initialValue = storedAnswer ?? data.correct ?? "";
+                return `
+            <li>
+              <label class="block font-medium">${letter}) ${data.label}</label>
+              <input type="text" class="mt-1 block w-full border rounded px-3 py-2"
+                value="${initialValue}"
+                oninput="saveAnswer(${idx}, '${letter}', this.value)">
+            </li>
+          `;
+            }).join("")}
+      </ul>
+    </div>
+  `).join("");
+        }
+
+        function clearQuestions() {
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(ANSWER_KEY);
+            document.getElementById("result").innerHTML = "";
+            document.getElementById("inputText").value = "";
+        }
+
+        function loadStoredQuestions() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    renderQuestions(parsed);
+                } catch (e) {
+                    console.error("Lỗi khi đọc localStorage:", e);
+                }
+            }
+        }
+
+        // ❗ Quan trọng: Cho phép HTML gọi hàm
+        window.saveAnswer = saveAnswer;
+
+        window.onload = loadStoredQuestions;
+    </script>
+</body>
+
+</html>

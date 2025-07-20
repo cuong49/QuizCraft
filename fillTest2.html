@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kiểm Tra Điền Số</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-6">
+  <div class="max-w-4xl mx-auto bg-white p-6 rounded-2xl shadow-lg">
+    <h1 class="text-2xl font-bold mb-6 text-center text-green-700">Bài Kiểm Tra Điền Số</h1>
+
+    <div id="quizContainer" class="space-y-8"></div>
+
+    <div class="text-center mt-6">
+      <button onclick="submitAnswers()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded">
+        Nộp bài
+      </button>
+      <p id="score" class="text-lg font-semibold mt-4 text-purple-700"></p>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "dien_so_data";
+    const ANSWER_KEY = "dien_so_answers";
+    let questions = [];
+
+    function loadQuestions() {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      const storedAnswers = localStorage.getItem(ANSWER_KEY);
+      if (!stored) {
+        document.getElementById("quizContainer").innerHTML = "<p class='text-red-600'>Không có dữ liệu bài kiểm tra.</p>";
+        return;
+      }
+
+      try {
+        questions = JSON.parse(stored);
+        const answers = storedAnswers ? JSON.parse(storedAnswers) : {};
+        renderQuiz(questions, answers);
+      } catch (e) {
+        console.error("Lỗi khi đọc dữ liệu:", e);
+      }
+    }
+
+    function renderQuiz(questions, savedAnswers) {
+      const container = document.getElementById("quizContainer");
+      container.innerHTML = questions.map((q, idx) => `
+        <div class="bg-gray-50 p-4 rounded-lg shadow">
+          <h2 class="text-xl font-semibold mb-2">Câu ${idx + 1}:</h2>
+          <p>${q.question}</p>
+          ${q.imgSrc ? `<img src="${q.imgSrc}" alt="Hình minh họa" class="my-3 max-w-xs border rounded">` : ""}
+          <ul class="space-y-2 mt-3">
+            ${Object.entries(q.answers).map(([letter, data]) => {
+              const previous = savedAnswers?.[idx]?.[letter] || "";
+              return `
+                <li>
+                  <label class="block font-medium">${letter}) ${data.label}</label>
+                  <input type="text" class="mt-1 block w-full border rounded px-3 py-2" 
+                         id="q${idx}-${letter}" value="${previous}"
+                         oninput="saveAnswer(${idx}, '${letter}', this.value)">
+                </li>
+              `;
+            }).join("")}
+          </ul>
+        </div>
+      `).join("");
+    }
+
+    function saveAnswer(qIdx, letter, val) {
+      let allAnswers = {};
+      try {
+        allAnswers = JSON.parse(localStorage.getItem(ANSWER_KEY)) || {};
+      } catch {
+        allAnswers = {};
+      }
+      if (!allAnswers[qIdx]) allAnswers[qIdx] = {};
+      allAnswers[qIdx][letter] = val;
+      localStorage.setItem(ANSWER_KEY, JSON.stringify(allAnswers));
+    }
+
+    // function submitAnswers() {
+    //   let correct = 0;
+    //   const total = questions.length;
+
+    //   questions.forEach((q, idx) => {
+    //     let allCorrect = true;
+    //     Object.entries(q.answers).forEach(([letter, data]) => {
+    //       const userInput = document.getElementById(`q${idx}-${letter}`).value.trim().toLowerCase();
+    //       const correctAnswer = data.correct.trim().toLowerCase();
+    //       if (userInput !== correctAnswer) {
+    //         allCorrect = false;
+    //       }
+    //     });
+    //     if (allCorrect) correct++;
+    //   });
+
+    //   document.getElementById("score").textContent = `Kết quả: ${correct}/${total} câu đúng hoàn toàn.`;
+    // }
+
+    function submitAnswers() {
+  let correct = 0;
+  const total = questions.length;
+
+  questions.forEach((q, idx) => {
+    let allCorrect = true;
+    Object.entries(q.answers).forEach(([letter, data]) => {
+      const inputEl = document.getElementById(`q${idx}-${letter}`);
+      const userInput = inputEl.value.trim().toLowerCase();
+      const correctAnswer = data.correct.trim().toLowerCase();
+
+      if (userInput === correctAnswer) {
+        inputEl.classList.remove("border-red-500", "bg-red-100");
+        inputEl.classList.add("border-green-500", "bg-green-100");
+      } else {
+        inputEl.classList.remove("border-green-500", "bg-green-100");
+        inputEl.classList.add("border-red-500", "bg-red-100");
+        allCorrect = false;
+      }
+    });
+    if (allCorrect) correct++;
+  });
+
+  document.getElementById("score").textContent = `Kết quả: ${correct}/${total} câu đúng hoàn toàn.`;
+}
+
+
+    window.onload = loadQuestions;
+    window.saveAnswer = saveAnswer; // để oninput gọi được hàm
+  </script>
+</body>
+</html>

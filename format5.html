@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trắc nghiệm nhiều câu (Lưu localStorage)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen p-6">
+    <div class="text-right mb-4">
+        <a href="http://127.0.0.1:5500/choice.html"
+            class="inline-flex items-center bg-green-600 text-white font-semibold py-2 px-4 rounded hover:bg-green-700 transition">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+            Làm bài trắc nghiệm
+        </a>
+    </div>
+
+    <div class="max-w-4xl mx-auto bg-white p-6 rounded-2xl shadow-lg">
+        <h1 class="text-2xl font-bold mb-4 text-center">QuizCraft</h1>
+
+        <!-- ✅ Nút chọn file -->
+        <div class="mb-4">
+            <!-- <label class="block font-medium mb-1">Hoặc chọn file .txt:</label> -->
+            <input type="file" id="fileInput" accept=".txt"
+                class="border border-gray-300 rounded px-3 py-2 w-full bg-gray-50" />
+        </div>
+
+        <textarea id="inputText" class="w-full h-60 p-3 border rounded-md mb-4"
+            placeholder="Nhập nhiều câu hỏi trắc nghiệm ở đây..."></textarea>
+
+        <div class="flex justify-center gap-4 mb-4">
+            <button onclick="parseMultipleQuestions()"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded">
+                Phân tích & Lưu
+            </button>
+            <button onclick="clearQuestions()"
+                class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded">
+                Xóa tất cả dữ liệu
+            </button>
+            <button onclick="exportQuestions()"
+                class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded">
+                Tải file (.txt)
+            </button>
+        </div>
+
+        <div id="result" class="mt-6 space-y-8"></div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = "tracnghiem_data";
+
+        // ✅ Đọc file txt vào textarea
+        document.getElementById("fileInput").addEventListener("change", function () {
+            const file = this.files[0];
+            if (file && file.type === "text/plain") {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    document.getElementById("inputText").value = e.target.result;
+                };
+                reader.readAsText(file);
+            } else {
+                alert("Vui lòng chọn file .txt hợp lệ!");
+            }
+        });
+        function convertToCauHoiFormat(text) {
+            return text.replace(/^\d+\.\s*(.*)$/gm, 'Câu hỏi: $1');
+        }
+
+        // ✅ Phân tích từng câu hỏi trắc nghiệm
+        function parseSingleQuestion(text) {
+            text = convertToCauHoiFormat(text.trim());
+            const questionMatch = text.match(/Câu hỏi[:\-]?\s*(.*)/i);
+
+            const question = questionMatch ? questionMatch[1].split("\n")[0].trim() : "Không tìm thấy câu hỏi.";
+
+            const answers = {};
+            let correctAnswer = null;
+
+            ["A", "B", "C", "D"].forEach(letter => {
+                const regex = new RegExp(`\\*?${letter}[\\.|\\)]\\s*(.*)`, "i");
+                const match = text.match(regex);
+                if (match) {
+                    const answerText = match[1].trim();
+
+                    const isCorrect = text.includes(`*${letter}.`) || text.includes(`*${letter})`) ||
+                        text.includes(`*${letter.toLowerCase()}.`) || text.includes(`*${letter.toLowerCase()})`);
+
+                    answers[letter] = answerText;
+                    if (isCorrect) correctAnswer = letter;
+                } else {
+                    answers[letter] = "Không tìm thấy";
+                }
+            });
+
+            const imgMatch = text.match(/<img[^>]*src=["']([^"']+)["'][^>]*>/i);
+            let imgSrc = imgMatch ? imgMatch[1] : null;
+
+            // ✅ Nếu ảnh là link Google Drive thì chuyển thành link nhúng hợp lệ
+            if (imgSrc && imgSrc.includes("drive.google.com")) {
+                const idMatch = imgSrc.match(/\/d\/([^/]+)/);
+                if (idMatch) {
+                    imgSrc = `https://drive.google.com/uc?export=view&id=${idMatch[1]}`;
+                }
+            }
+
+            return { question, answers, correctAnswer, imgSrc };
+        }
+
+        function parseMultipleQuestions() {
+            const inputText = document.getElementById("inputText").value;
+            const questionBlocks = inputText.split(/\n\s*\n+/).map(q => q.trim()).filter(q => q.length > 0);
+            const parsedQuestions = questionBlocks.map(parseSingleQuestion);
+
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedQuestions));
+            renderQuestions(parsedQuestions);
+        }
+
+        function renderQuestions(questions) {
+            const resultDiv = document.getElementById("result");
+            resultDiv.innerHTML = questions.map((q, idx) => `
+        <div class="bg-gray-50 p-4 rounded-lg shadow space-y-2">
+            <h2 class="text-xl font-semibold">Câu ${idx + 1}:</h2>
+            <p>${q.question}</p>
+            ${q.imgSrc ? `<img src="${q.imgSrc}" alt="Hình minh họa" class="my-3 max-w-xs border rounded">` : ""}
+
+            <ul class="space-y-1">
+                ${["A", "B", "C", "D"].map(letter => {
+                const isCorrect = q.correctAnswer === letter;
+                return `
+                        <li>
+                            <label class="flex items-center gap-2 ${isCorrect ? 'text-green-600 font-bold' : ''}">
+                                <input type="radio" name="correct-${idx}" value="${letter}" 
+                                    ${isCorrect ? "checked" : ""} 
+                                    onchange="updateCorrectAnswer(${idx}, '${letter}')">
+                                <span><strong>${letter}:</strong> ${q.answers[letter]}</span>
+                                ${isCorrect ? "✅" : ""}
+                            </label>
+                        </li>
+                    `;
+            }).join("")}
+            </ul>
+        </div>
+    `).join("");
+        }
+        function updateCorrectAnswer(questionIndex, newCorrectLetter) {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    if (parsed[questionIndex]) {
+                        parsed[questionIndex].correctAnswer = newCorrectLetter;
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+                        renderQuestions(parsed);
+                    }
+                } catch (e) {
+                    console.error("Không thể cập nhật đáp án đúng:", e);
+                }
+            }
+        }
+
+
+        function clearQuestions() {
+            localStorage.removeItem(STORAGE_KEY);
+            document.getElementById("result").innerHTML = "";
+            document.getElementById("inputText").value = "";
+        }
+
+        function loadStoredQuestions() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    renderQuestions(parsed);
+                } catch (e) {
+                    console.error("Lỗi khi đọc localStorage:", e);
+                }
+            }
+        }
+        function exportQuestions() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (!stored) {
+                alert("Không có dữ liệu để xuất!");
+                return;
+            }
+
+            try {
+                const questions = JSON.parse(stored);
+                const textOutput = questions.map((q, index) => {
+                    const lines = [];
+                    lines.push(`Câu hỏi: ${q.question}`);
+                    ["A", "B", "C", "D"].forEach(letter => {
+                        const prefix = (q.correctAnswer === letter) ? `*${letter}.` : `${letter}.`;
+                        lines.push(`${prefix} ${q.answers[letter]}`);
+                    });
+                    return lines.join("\n");
+                }).join("\n\n");
+
+                // Tạo file và tải về
+                const blob = new Blob([textOutput], { type: "text/plain;charset=utf-8" });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = "cau-hoi-trac-nghiem.txt";
+                link.click();
+            } catch (e) {
+                console.error("Lỗi khi xuất dữ liệu:", e);
+                alert("Đã xảy ra lỗi khi xuất file!");
+            }
+        }
+
+
+        window.onload = loadStoredQuestions;
+    </script>
+
+</body>
+
+</html>

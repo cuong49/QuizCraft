@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Làm bài trắc nghiệm</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen p-6">
+    <div class="max-w-5xl mx-auto bg-white p-6 rounded-2xl shadow-lg" id="settingsContainer">
+        <!-- Thiết lập tùy chọn -->
+        <div class="flex flex-wrap gap-4 justify-center mb-6">
+            <label class="flex items-center gap-2">
+                <input type="checkbox" id="shuffleQuestions" class="accent-blue-600">
+                <span>Trộn thứ tự câu hỏi</span>
+            </label>
+            <label class="flex items-center gap-2">
+                <input type="checkbox" id="shuffleAnswers" class="accent-blue-600">
+                <span>Trộn thứ tự đáp án</span>
+            </label>
+            <button class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded" onclick="hienThiCauHoi()">
+                Bắt đầu làm bài
+            </button>
+        </div>
+    </div>
+    <div class="max-w-5xl mx-auto bg-white p-6 rounded-2xl shadow-lg" id="quizContainer" style="display: none;">
+        <h1 class="text-2xl font-bold mb-4 text-center">Làm bài trắc nghiệm</h1>
+
+        <!-- Bảng trạng thái -->
+        <div id="statusPanel" class="flex flex-wrap justify-center gap-2 mb-6"></div>
+
+        <!-- Danh sách câu hỏi -->
+        <div id="quiz" class="space-y-8"></div>
+
+        <!-- Nút chấm điểm -->
+        <div class="text-center mt-6">
+            <button onclick="submitQuiz()"
+                class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+                Chấm điểm
+            </button>
+            <p id="score" class="mt-4 text-xl font-semibold"></p>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = "tracnghiem_data";
+        let questions = [];
+
+        function loadQuestions() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (!stored) {
+                document.getElementById("quiz").innerHTML = "<p class='text-red-600'>Không có dữ liệu câu hỏi. Vui lòng nhập dữ liệu ở trang trước.</p>";
+                return;
+            }
+
+            questions = JSON.parse(stored);
+            renderQuiz(questions);
+        }
+
+        function renderQuiz(questions) {
+            const quizDiv = document.getElementById("quiz");
+            const statusPanel = document.getElementById("statusPanel");
+
+            quizDiv.innerHTML = questions.map((q, idx) => `
+        <div class="bg-gray-50 p-4 rounded-lg shadow" id="q${idx}">
+          <h2 class="text-xl font-semibold">Câu ${idx + 1}:</h2>
+          <p class="mt-1 mb-2">${q.question}</p>
+          ${q.imgSrc ? `<img src="${q.imgSrc}" alt="Hình minh họa" class="my-3 max-w-xs border rounded">` : ""}
+          <div class="grid gap-2">
+            ${["A", "B", "C", "D"].map(letter => `
+              <label class="flex items-center gap-2">
+                <input type="radio" name="q${idx}" value="${letter}" class="accent-blue-600" onchange="updateStatus()">
+                <span>${letter}: ${q.answers[letter]}</span>
+              </label>
+            `).join("")}
+          </div>
+        </div>
+      `).join("");
+
+            // Bảng trạng thái
+            statusPanel.innerHTML = questions.map((_, idx) => `
+        <button onclick="scrollToQuestion(${idx})" id="status-q${idx}"
+                class="w-8 h-8 rounded-full text-sm font-bold border border-gray-300 bg-gray-200 hover:bg-blue-200 transition">
+          ${idx + 1}
+        </button>
+      `).join("");
+
+            updateStatus();
+        }
+
+        function updateStatus() {
+            questions.forEach((_, idx) => {
+                const selected = document.querySelector(`input[name="q${idx}"]:checked`);
+                const button = document.getElementById(`status-q${idx}`);
+                if (selected) {
+                    button.classList.remove("bg-gray-200", "border-gray-300");
+                    button.classList.add("bg-green-500", "text-white", "border-green-600");
+                } else {
+                    button.classList.remove("bg-green-500", "text-white", "border-green-600");
+                    button.classList.add("bg-gray-200", "border-gray-300");
+                }
+            });
+        }
+
+        function scrollToQuestion(index) {
+            const q = document.getElementById(`q${index}`);
+            if (q) q.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+
+        function submitQuiz() {
+            let correct = 0;
+            const total = questions.length;
+            const results = [];
+
+            questions.forEach((q, idx) => {
+                const selected = document.querySelector(`input[name="q${idx}"]:checked`);
+                const chosen = selected ? selected.value : null;
+                const isCorrect = chosen === q.correctAnswer;
+                results.push(isCorrect);
+                if (isCorrect) correct++;
+            });
+
+            // Hiển thị kết quả từng câu
+            document.querySelectorAll("#quiz > div").forEach((div, idx) => {
+                const isCorrect = results[idx];
+                const footer = document.createElement("div");
+                footer.className = "mt-2 text-sm font-medium";
+                footer.innerHTML = isCorrect
+                    ? "<span class='text-green-600'>✅ Chính xác</span>"
+                    : `<span class='text-red-600'>❌ Sai. Đáp án đúng là: ${questions[idx].correctAnswer}</span>`;
+                div.appendChild(footer);
+            });
+
+            document.getElementById("score").textContent = `Kết quả: ${correct}/${total} câu đúng`;
+        }
+        function startQuiz() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (!stored) {
+                document.getElementById("quiz").innerHTML = "<p class='text-red-600'>Không có dữ liệu câu hỏi.</p>";
+                return;
+            }
+
+            let qList = JSON.parse(stored);
+
+            const shuffleQ = document.getElementById("shuffleQuestions").checked;
+            const shuffleA = document.getElementById("shuffleAnswers").checked;
+
+            // Trộn câu hỏi nếu được chọn
+            if (shuffleQ) shuffleArray(qList);
+
+            // Trộn đáp án trong từng câu
+            if (shuffleA) {
+                qList = qList.map(q => {
+                    const original = Object.entries(q.answers); // [["A", "Paris"], ...]
+                    const shuffled = [...original];
+                    shuffleArray(shuffled);
+
+                    const newAnswers = {};
+                    let newCorrect = null;
+
+                    ["A", "B", "C", "D"].forEach((newLetter, idx) => {
+                        const [oldLetter, answerText] = shuffled[idx];
+                        newAnswers[newLetter] = answerText;
+                        if (oldLetter === q.correctAnswer) newCorrect = newLetter;
+                    });
+
+                    return {
+                        ...q,
+                        answers: newAnswers,
+                        correctAnswer: newCorrect
+                    };
+                });
+            }
+
+            questions = qList;
+            renderQuiz(questions);
+        }
+
+        function shuffleArray(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+        }
+        function hienThiCauHoi() {
+            startQuiz();
+            document.getElementById("settingsContainer").style.display = "none";
+            document.getElementById("quizContainer").style.display = "block";
+        }
+
+
+        // window.onload = loadQuestions;
+        window.onload = () => {
+            document.getElementById("quiz").innerHTML =
+                "<p class='text-gray-600 text-center'>Chọn thiết lập và nhấn <strong>Bắt đầu làm bài</strong>.</p>";
+        };
+
+    </script>
+</body>
+
+</html>
